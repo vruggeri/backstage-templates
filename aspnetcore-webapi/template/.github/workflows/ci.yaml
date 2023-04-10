@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+
+env:
+  buildConfiguration: 'Release'
+
+jobs:
+
+  Build: 
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: 'dotnet publish'
+      run: |
+        dotnet publish --configuration ${{env.buildConfiguration}} --output out
+    - name: Publish artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: zip
+        path: "out/**"

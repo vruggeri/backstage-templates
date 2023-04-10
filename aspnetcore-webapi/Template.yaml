@@ -1,0 +1,86 @@
+apiVersion: backstage.io/v1beta2
+kind: Template
+metadata:
+  name: aspnet-core-webapi
+  title: ASP.NET Core 5.0 Web API
+  description: Use este modelo para criar um novo projeto de Web API usando o ASP.NET Core 5.0
+  tags: [dotnet, webapi, dotnetcore, aspnetcore]
+
+spec:
+  owner: cloudmotionbr/backstage
+  type: service
+  parameters:
+    - title: Configurações do projeto
+      required: [name, title, description, namespace]
+      properties:
+        name:
+          title: Nome
+          type: string
+          description: Nome do seu projeto. Use apenas letras, números, pontos e hífens.
+          ui:autofocus: true
+        title:
+          title: Título
+          type: string
+          description: Nome amigável do seu projeto, que será exibido no README e no catálogo de componentes.
+        description:
+          title: Descrição
+          type: string
+          description: Breve descrição do seu projeto.
+          ui:options:
+            rows: 5
+        namespace:
+          title: Namespace-raíz
+          type: string
+          description: O namespace-raíz do projeto. Utilize apenas letras e pontos.
+        owner:
+          title: Proprietário(s)
+          type: string
+          description: Equipe responsável pelo projeto
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds: [Group]
+    - title: Configurações do repositório
+      required:
+        - repoUrl
+      properties: 
+        repoUrl:
+          title: Local do repositório
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+  steps:
+    - id: template
+      name: Fetch Skeleton + Template
+      action: fetch:cookiecutter
+      input:
+        url: ./template
+        copyWithoutRender:
+          - .github/workflows/*
+        values:
+          name: '{{ parameters.name }}'
+          title: '{{ parameters.title }}'
+          description: '{{ parameters.description }}'
+          namespace: '{{ parameters.namespace }}'
+          destination: '{{ parseRepoUrl parameters.repoUrl }}'
+          owner: '{{ parameters.owner }}'
+
+    - id: publish
+      name: Publish
+      action: publish:github
+      input:
+        allowedHosts: ['github.com']
+        description: '{{ parameters.title }}'
+        repoUrl: '{{ parameters.repoUrl }}'
+
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: '{{ steps.publish.output.repoContentsUrl }}'
+        catalogInfoPath: '/catalog-info.yaml'
+
+  output:
+    remoteUrl: '{{ steps.publish.output.remoteUrl }}'
+    entityRef: '{{ steps.register.output.entityRef }}'

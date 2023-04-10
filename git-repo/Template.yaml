@@ -1,0 +1,92 @@
+apiVersion: backstage.io/v1beta2
+kind: Template
+# some metadata about the template itself
+metadata:
+  name: git-repo
+  title: Repositório Git
+  description: Use este modelo para criar um novo repositório Git no Azure DevOps
+  tags: ['devops', 'azure-devops', 'git']
+spec:
+  owner: cloudmotionbr/backstage
+  type: devops
+
+  # these are the steps which are rendered in the frontend with the form input
+  parameters:
+    - title: Informações sobre o repositório
+      required: [ name, description, gitFlow, owner]
+      properties:
+        name:
+          title: Nome do repositório
+          type: string
+          description: Informe o nome do novo repositório Git. Use apenas letras, números e hífens.
+        description:
+          title: Descrição
+          type: string
+          description: Descrição do seu projeto/repositório.
+          ui:options:
+            rows: 5
+        gitFlow: 
+          title: Fluxo de trabalho Git 
+          type: boolean
+          description: Informe o fluxo de trabalho Git que será usado no seu repositório
+          ui:widget: radio
+          enumNames:
+            - GitFlow
+            - GitHubFlow
+        gitIgnore:
+          title: Arquivo .gitignore
+          type: string
+          description: Inclui arquivo .gitignore padrão no repositório?
+          enum: ['Node', 'VisualStudio', 'Global/VisualStudioCode']
+          enumNames: ['Node.js', 'Visual Studio', 'Visual Studio Code']
+        owner:
+          title: Squad
+          description: O nome da squad responsável por este repositório
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds: [ 'Group' ]
+
+  # here's the steps that are executed in series in the scaffolder backend
+  steps:
+    - id: download-readme
+      name: Fetch README
+      action: fetch:cookiecutter
+      input:
+        url: ./template
+        values:
+          name: '{{ parameters.name }}'
+          description: '{{ parameters.description }}'
+    - id: download-gitignore
+      name: Fetch .gitignore
+      action: fetch:file
+      if: '{{ parameters.gitIgnore }}'
+      input:
+        url: https://raw.githubusercontent.com/github/gitignore/master/{{ parameters.gitIgnore }}.gitignore
+        fileName: .gitignore
+    - id: publish
+      name: Publish
+      action: publish:azure
+      input:
+        allowedHosts: ['dev.azure.com']
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'
+    - id: create-develop
+      name: Create develop branch
+      action: azure:repos:new-branch
+      if: '{{ parameters.gitFlow }}'
+      input:
+        name: develop
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'
+    - id: enable-develop-branch-policy
+      name: Enable branch policy for develop
+      action: azure:repos:enable-branch-policy
+      if: '{{ parameters.gitFlow }}'
+      input:
+        name: develop
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'
+    - id: enable-master-branch-policy
+      name: Enable branch policy for master
+      action: azure:repos:enable-branch-policy
+      input:
+        name: master
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'

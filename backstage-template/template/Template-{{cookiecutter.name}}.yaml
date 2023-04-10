@@ -1,0 +1,57 @@
+apiVersion: backstage.io/v1beta2
+kind: Template
+# some metadata about the template itself
+metadata:
+  name: {{ cookiecutter.name }}
+  title: {{ cookiecutter.title }}
+  description: {{ cookiecutter.description }}
+  tags: [ {{ cookiecutter.tags }} ]
+spec:
+  owner: {{ cookiecutter.owner }}
+  type: {{ cookiecutter.type }}
+
+  # Estes serão os parâmetros do seu modelo. Altere-os de acordo com sua necessidade
+
+  parameters:
+    - title: Preencha os campos abaixo
+      required:
+        - name
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Nome do componente
+          ui:autofocus: true
+          ui:options:
+            rows: 5
+    - title: Escolha um local
+      required:
+        - repoUrl
+      properties:
+        repoUrl:
+          title: Local do repositório
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - dev.azure.com
+
+  # Este é o pipeline que será executado para criar seu componente
+
+  steps:
+    - id: fetch-plain
+      name: Baixa o código-fonte do exemplo
+      action: fetch:cookiecutter
+      input:
+        url: ./template
+        values:
+          name: '{{"{{"}} parameters.name }}'
+
+    - id: publish
+      name: Publish
+      action: publish:azure
+      input:
+        allowedHosts:
+        - dev.azure.com
+        description: 'This is {{"{{"}} parameters.name }}'
+        repoUrl: '{{"{{"}} parameters.repoUrl }}'

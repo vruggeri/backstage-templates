@@ -1,0 +1,119 @@
+apiVersion: backstage.io/v1beta2
+kind: Template
+metadata:
+  name: windows-forms-472
+  title: Windows Forms (.NET Framework 4.7.2)
+  description: Use este modelo para criar um novo projeto de aplicação usando Windows Forms com .NET Framework 4.7.2
+
+spec:
+  owner: cloudmotionbr/backstage
+  type: application
+
+  parameters:
+    - title: Configurações do projeto
+      required: [name, title, description, namespace]
+      properties:
+        name:
+          title: Nome
+          type: string
+          description: Nome do seu projeto. Use apenas letras, números, pontos e hífens.
+          ui:autofocus: true
+        title:
+          title: Título
+          type: string
+          description: Nome amigável do seu projeto, que será exibido no README e no catálogo de componentes.
+        description:
+          title: Descrição
+          type: string
+          description: Breve descrição do seu projeto.
+          ui:options:
+            rows: 5
+        namespace:
+          title: Namespace-raíz
+          type: string
+          description: O namespace-raíz do projeto. Utilize apenas letras e pontos.
+    - title: Configurações do repositório
+      required: [ gitFlow, owner ]
+      properties:
+        gitFlow: 
+          title: Fluxo de trabalho Git 
+          type: boolean
+          description: Informe o fluxo de trabalho Git que será usado no seu repositório
+          ui:widget: radio
+          enumNames:
+            - GitFlow
+            - GitHubFlow
+        owner:
+          title: Squad
+          description: O nome da squad responsável por este projeto
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds: [ 'Group' ]
+
+  steps:
+    - id: fetch-code
+      name: Generate code
+      action: fetch:cookiecutter
+      input:
+        url: ./template
+        values:
+          name: '{{ parameters.name }}'
+          title: '{{ parameters.title }}'
+          description: '{{ parameters.description }}'
+          namespace: '{{ parameters.namespace }}'
+          owner: '{{ parameters.owner }}'
+
+    - id: publish
+      name: Publish repository
+      action: publish:azure
+      input:
+        allowedHosts: ['dev.azure.com']
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'
+
+    - id: enable-build
+      name: Enable CI pipeline
+      action: azure:pipelines:create
+      input:
+        name: '{{ parameters.name }}-CI'
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'
+        sourcePath: 'azure-pipelines.yaml'
+
+    - id: create-develop
+      name: Create develop branch
+      action: azure:repos:new-branch
+      if: '{{ parameters.gitFlow }}'
+      input:
+        name: develop
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'
+
+    - id: enable-develop-branch-policy
+      name: Enable branch policy for develop
+      action: azure:repos:enable-branch-policy
+      if: '{{ parameters.gitFlow }}'
+      input:
+        name: develop
+        buildDefinitionId: "{{ steps.enable-build.output.id }}"
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'
+
+    - id: enable-master-branch-policy
+      name: Enable branch policy for master
+      action: azure:repos:enable-branch-policy
+      input:
+        name: master
+        buildDefinitionId: "{{ steps.enable-build.output.id }}"
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'
+
+    - id: register
+      name: Register component
+      action: catalog:register
+      input:
+        repoContentsUrl: '{{ steps.publish.output.repoContentsUrl }}'
+        catalogInfoPath: 'catalog-info.yaml'
+
+    - id: queue-build
+      name: Queue pipeline
+      action: azure:pipelines:queue
+      input:
+        id: '{{ steps.enable-build.output.id }}'
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'

@@ -1,0 +1,109 @@
+apiVersion: backstage.io/v1beta2
+kind: Template
+# some metadata about the template itself
+metadata:
+  name: backstage-template
+  title: Modelo do Backstage
+  description: Use este modelo para criar um novo modelo de componente no Backstage
+spec:
+  owner: cloudmotionbr/backstage
+  type: devops
+
+  # these are the steps which are rendered in the frontend with the form input
+  parameters:
+    - title: Configurações do projeto
+      required: [name, title, description, type, tags]
+      properties:
+        name:
+          title: Nome
+          type: string
+          description: Nome do seu modelo. Use apenas letras minúsculas, números e hífens.
+          ui:autofocus: true
+        title:
+          title: Título
+          type: string
+          description: Nome amigável do seu modelo, que será exibido na página de criação de componentes do Backstage.
+        description:
+          title: Descrição
+          type: string
+          description: Texto descritivo do seu modelo.
+          ui:options:
+            rows: 5
+        type:
+          title: Categoria
+          type: string
+          description: A categoria em que seu componente se enquadra. Alguns dos valores válidos são "Website", "Service", "Library", "Component"
+        tags:
+          title: Tags
+          type: string
+          description: Lista de tags para classificar seu modelo, separadas por vírgulas
+    - title: Configurações do repositório
+      required: [ gitFlow, owner ]
+      properties:
+        gitFlow: 
+          title: Fluxo de trabalho Git 
+          type: boolean
+          description: Informe o fluxo de trabalho Git que será usado no seu repositório
+          ui:widget: radio
+          enumNames:
+            - GitFlow
+            - GitHubFlow
+        owner:
+          title: Squad
+          description: O nome da squad responsável por este projeto
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds: [ 'Group' ]
+
+  # here's the steps that are executed in series in the scaffolder backend
+  steps:
+    - id: fetch-base
+      name: Fetch Base
+      action: fetch:cookiecutter
+      input:
+        url: ./template
+        values:
+          name: '{{ parameters.name }}'
+          title: '{{ parameters.title }}'
+          description: '{{ parameters.description }}'
+          owner: '{{ parameters.owner }}'
+          type: '{{ parameters.type }}'
+          tags: '{{ parameters.tags }}'
+
+    - id: publish
+      name: Publish
+      action: publish:azure
+      input:
+        allowedHosts: ['dev.azure.com']
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'
+
+    - id: create-develop
+      name: Create develop branch
+      action: azure:repos:new-branch
+      if: '{{ parameters.gitFlow }}'
+      input:
+        name: develop
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'
+
+    - id: enable-develop-branch-policy
+      name: Enable branch policy for develop
+      action: azure:repos:enable-branch-policy
+      if: '{{ parameters.gitFlow }}'
+      input:
+        name: develop
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'
+
+    - id: enable-master-branch-policy
+      name: Enable branch policy for master
+      action: azure:repos:enable-branch-policy
+      input:
+        name: master
+        repoUrl: 'dev.azure.com?organization=bancomodal&owner=TI&repo={{parameters.owner}}-{{parameters.name}}'
+
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: '{{ steps.publish.output.repoContentsUrl }}'
+        catalogInfoPath: '/Template-{{ parameters.name }}.yaml'
